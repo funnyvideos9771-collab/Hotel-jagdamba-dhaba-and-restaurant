@@ -38,7 +38,7 @@ button,input,select{font-family:inherit}
 .name{font-weight:800;font-size:16px;line-height:1.25}
 .vd{display:inline-grid;place-items:center;width:14px;height:14px;border:1.5px solid var(--veg);border-radius:3px;margin-right:6px;vertical-align:-1px}
 .vd i{width:6px;height:6px;border-radius:50%;background:var(--veg)}.vd.n{border-color:var(--nv)}.vd.n i{background:var(--nv)}
-.desc{font-size:12.5px;color:var(--mute);margin:4px 0 7px;line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.desc{font-size:12.5px;color:var(--mute);margin:4px 0 7px;line-height:1.4;display:-webkit-box;-webkit-line-clamp:8;-webkit-box-orient:vertical;overflow:hidden}
 .row{display:flex;justify-content:space-between;align-items:center}
 .price{color:var(--gl);font-weight:800;font-size:18px}
 .add{padding:8px 24px;border-radius:12px;border:1.5px solid var(--gold);background:transparent;color:var(--gl);font-weight:800;cursor:pointer}
@@ -47,6 +47,8 @@ button,input,select{font-family:inherit}
 .qty button{background:none;border:0;font-size:20px;width:36px;height:34px;cursor:pointer;color:#000;font-weight:800}
 .qty span{min-width:20px;text-align:center}
 .item.sold{opacity:.5}.item.sold img{filter:grayscale(1)}.soldtag{color:#999;font-weight:700;font-size:13px}
+.hi{font-family:'Hind',sans-serif;color:#e6d9a8;font-size:14.5px;font-weight:600;margin-top:2px}
+.vr{margin-top:8px}.pt{font-size:13px;color:#cfc8b8;font-weight:600}
 .empty{text-align:center;color:#777;padding:44px 20px}
 .sk{height:110px;margin:12px 14px;border-radius:18px;background:linear-gradient(90deg,#101010 25%,#1a1a1a 50%,#101010 75%);background-size:200% 100%;animation:sh 1.3s infinite}@keyframes sh{to{background-position:-200% 0}}
 .call{margin:28px 14px;padding:22px;text-align:center;border:1px solid var(--gold);border-radius:20px;background:var(--box)}
@@ -178,37 +180,47 @@ const UPI_NAME="Hotel Jagdamba";
 const GST_PCT=0, DELIVERY_FEE=0, FREE_DELIVERY_ABOVE=0;
 
 const $=id=>document.getElementById(id);
+const dn=i=>i.name+(i.portion&&i.portion!=="Regular"?" ("+i.portion+")":"");
+function sig(){let h=0;const t=items.map(i=>i.name+i.portion+i.price).join("|");for(let k=0;k<t.length;k++)h=(h*31+t.charCodeAt(k))|0;return String(h)}
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const PH="data:image/svg+xml;utf8,"+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="84" height="84"><rect width="84" height="84" fill="#111"/><text x="42" y="54" font-size="32" text-anchor="middle">🍛</text></svg>');
 let items=[],cart={},cat="All",type="all",mode="Dining",pay="UPI",order=null;
 const P=new URLSearchParams(location.search);
 
 function parseCSV(t){const R=[];let r=[],c="",q=false;for(let i=0;i<t.length;i++){const h=t[i];if(q){if(h=='"'){if(t[i+1]=='"'){c+='"';i++}else q=false}else c+=h}else if(h=='"')q=true;else if(h==','){r.push(c);c=""}else if(h=='\n'||h=='\r'){if(h=='\r'&&t[i+1]=='\n')i++;r.push(c);R.push(r);r=[];c=""}else c+=h}if(c||r.length){r.push(c);R.push(r)}return R}
-function build(t){return parseCSV(t).slice(1).filter(r=>r[0]&&r[0].trim()).map((c,i)=>({id:i,name:c[0].trim(),price:parseInt(c[1])||0,cat:(c[2]||"Menu").trim(),nv:/non/i.test(c[3]||""),desc:(c[4]||"").trim(),img:(c[5]||"").trim(),sold:/^\s*(no|n|sold|sold out|out|unavailable|0|false)\s*$/i.test(c[6]||"")}))}
+function build(t){
+  const rows=parseCSV(t),H=(rows[0]||[]).map(x=>String(x).toLowerCase());
+  const f=(re,d,sk)=>{const i=H.findIndex(h=>re.test(h)&&!(sk&&sk.test(h)));return i<0?d:i};
+  const C={name:f(/item|name/,0,/hindi|हिंदी/),hindi:f(/hindi|हिंदी/,1),cat:f(/categ|bucket/,2),type:f(/type/,3),portion:f(/portion|half/,4),price:f(/rate|price/,5),desc:f(/descr/,6),img:f(/image|photo/,7),avail:f(/avail/,8)};
+  return rows.slice(1).filter(r=>r[C.name]&&r[C.name].trim()).map((c,i)=>{const price=parseInt(String(c[C.price]||"").replace(/[^\d]/g,""))||0;return{id:i,name:c[C.name].trim(),hindi:(c[C.hindi]||"").trim(),cat:(c[C.cat]||"Menu").trim(),nv:/non/i.test(c[C.type]||""),portion:(c[C.portion]||"").trim(),price,desc:(c[C.desc]||"").trim(),img:(c[C.img]||"").trim(),sold:price<=0||/^\s*(no|n|not available|unavailable|sold|sold out|out|0|false)\s*$/i.test(c[C.avail]||"")}})
+}
 async function load(){
   try{const r=await fetch(SHEET+"&t="+Date.now());if(!r.ok)throw 0;const t=await r.text();items=build(t);try{localStorage.setItem("jd_menu",t)}catch(e){}}
   catch(e){try{const t=localStorage.getItem("jd_menu");if(t){items=build(t);toast("ऑफ़लाइन — पिछला मेन्यू")}}catch(_){}}
-  try{const s=JSON.parse(localStorage.getItem("jd_cart")||"{}");for(const k in s)if(items[k]&&!items[k].sold)cart[k]=s[k]}catch(e){}
+  try{if(localStorage.getItem("jd_sig")===sig()){const s=JSON.parse(localStorage.getItem("jd_cart")||"{}");for(const k in s)if(items[k]&&!items[k].sold)cart[k]=s[k]}}catch(e){}
   cats();render();sync();
 }
 function cats(){$("cats").innerHTML=["All",...new Set(items.map(i=>i.cat))].map(c=>`<button class="chip ${c===cat?"on":""}" data-c="${esc(c)}">${c==="All"?"सब कुछ":esc(c)}</button>`).join("")}
 function render(){
   const q=$("q").value.trim().toLowerCase();
-  const L=items.filter(i=>(cat==="All"||i.cat===cat)&&(type==="all"||(type==="nv")===i.nv)&&(!q||(i.name+" "+i.desc).toLowerCase().includes(q)));
+  const L=items.filter(i=>(cat==="All"||i.cat===cat)&&(type==="all"||(type==="nv")===i.nv)&&(!q||(i.name+" "+i.hindi+" "+i.desc).toLowerCase().includes(q)));
   if(!L.length){$("menu").innerHTML='<div class="empty">🍽️<br>कोई डिश नहीं मिली।</div>';return}
+  const G=[],M={};
+  L.forEach(i=>{const k=i.cat+"|"+i.name+"|"+i.nv;if(!M[k]){M[k]={...i,vs:[]};G.push(M[k])}M[k].vs.push(i)});
   let h="",last="";
-  L.forEach(i=>{
-    if(cat==="All"&&i.cat!==last){h+=`<div class="sec">${esc(i.cat)}</div>`;last=i.cat}
-    const n=cart[i.id]||0;
-    h+=`<article class="item ${i.sold?"sold":""}"><img loading="lazy" src="${esc(i.img)||PH}" alt="${esc(i.name)}" onerror="this.onerror=null;this.src='${PH}'"><div class="inf"><div class="name"><span class="vd ${i.nv?"n":""}"><i></i></span>${esc(i.name)}</div><div class="desc">${esc(i.desc)}</div><div class="row"><span class="price">₹${i.price}</span>${i.sold?'<span class="soldtag">Sold out</span>':n?`<div class="qty"><button data-q="${i.id}" data-d="-1" aria-label="कम">−</button><span>${n}</span><button data-q="${i.id}" data-d="1" aria-label="ज़्यादा">+</button></div>`:`<button class="add" data-q="${i.id}" data-d="1">ADD</button>`}</div></div></article>`;
+  G.forEach(g=>{
+    if(cat==="All"&&g.cat!==last){h+=`<div class="sec">${esc(g.cat)}</div>`;last=g.cat}
+    const rows=g.vs.map(v=>{const n=cart[v.id]||0,lab=v.portion&&v.portion!=="Regular"?esc(v.portion)+" · ":"";
+      return `<div class="row vr"><span class="pt">${lab}<span class="price">₹${v.price}</span></span>${v.sold?'<span class="soldtag">उपलब्ध नहीं</span>':n?`<div class="qty"><button data-q="${v.id}" data-d="-1" aria-label="कम">−</button><span>${n}</span><button data-q="${v.id}" data-d="1" aria-label="ज़्यादा">+</button></div>`:`<button class="add" data-q="${v.id}" data-d="1">ADD</button>`}</div>`}).join("");
+    h+=`<article class="item ${g.vs.every(v=>v.sold)?"sold":""}">${g.img?`<img loading="lazy" src="${esc(g.img)}" alt="${esc(g.name)}" onerror="this.remove()">`:""}<div class="inf"><div class="name"><span class="vd ${g.nv?"n":""}"><i></i></span>${esc(g.name)}</div>${g.hindi?`<div class="hi">${esc(g.hindi)}</div>`:""}${g.desc?`<div class="desc">${esc(g.desc)}</div>`:""}${rows}</div></article>`;
   });
   $("menu").innerHTML=h;
 }
 function sub(){let t=0,c=0;for(const k in cart){if(!items[k]||items[k].sold){delete cart[k];continue}t+=cart[k]*items[k].price;c+=cart[k]}return{t,c}}
 function bill(){const{t}=sub();const gst=Math.round(t*GST_PCT/100);const del=(mode==="Delivery"&&t>0&&DELIVERY_FEE&&!(FREE_DELIVERY_ABOVE&&t>=FREE_DELIVERY_ABOVE))?DELIVERY_FEE:0;return{sub:t,gst,del,grand:t+gst+del}}
-function sync(){const{t,c}=sub();$("bar").style.display=c?"flex":"none";$("bc").textContent=c+" आइटम";$("bt").textContent="₹"+t;$("sub").textContent="₹"+t;try{localStorage.setItem("jd_cart",JSON.stringify(cart))}catch(e){}}
+function sync(){const{t,c}=sub();$("bar").style.display=c?"flex":"none";$("bc").textContent=c+" आइटम";$("bt").textContent="₹"+t;$("sub").textContent="₹"+t;try{localStorage.setItem("jd_cart",JSON.stringify(cart));localStorage.setItem("jd_sig",sig())}catch(e){}}
 function change(id,d){cart[id]=(cart[id]||0)+d;if(cart[id]<=0)delete cart[id];render();sync();if($("cartOv").classList.contains("open"))lines()}
-function lines(){const k=Object.keys(cart);if(!k.length){$("cartOv").classList.remove("open");return}$("lines").innerHTML=k.map(i=>`<div class="ln"><span>${esc(items[i].name)}</span><span class="c">₹${items[i].price*cart[i]} <button data-q="${i}" data-d="-1">−</button> ${cart[i]} <button data-q="${i}" data-d="1">+</button></span></div>`).join("");sync()}
+function lines(){const k=Object.keys(cart);if(!k.length){$("cartOv").classList.remove("open");return}$("lines").innerHTML=k.map(i=>`<div class="ln"><span>${esc(dn(items[i]))}</span><span class="c">₹${items[i].price*cart[i]} <button data-q="${i}" data-d="-1">−</button> ${cart[i]} <button data-q="${i}" data-d="1">+</button></span></div>`).join("");sync()}
 function setMode(m){mode=m;document.querySelectorAll("#modeSeg button").forEach(b=>b.classList.toggle("on",b.dataset.m===m));$("info").placeholder=m==="Dining"?"टेबल नंबर":"पूरा पता (Address)"}
 
 function makeBill(){
@@ -220,7 +232,7 @@ function makeBill(){
   order={id:"JD"+String(d.getTime()).slice(-6),name,info,ph,mode,date:d.toLocaleDateString("en-IN")};
   $("bph").textContent="📞 "+CALL_NO;
   $("meta").innerHTML=`<div><span>ऑर्डर नं.</span><b>${order.id}</b></div><div><span>तारीख</span><b>${order.date}</b></div><div><span>ग्राहक</span><b>${esc(name)}</b></div><div><span>${mode==="Dining"?"टेबल":"प्रकार"}</span><b>${mode==="Dining"?esc(info):"Delivery"}</b></div>${mode==="Delivery"?`<div style="grid-column:1/-1"><span>पता</span><b>${esc(info)}</b></div>`:""}`;
-  $("bbody").innerHTML=Object.keys(cart).map(k=>{const i=items[k];return`<tr><td><span class="dt" style="background:${i.nv?"#ff3b3b":"#00c853"}"></span>${esc(i.name)}</td><td>${cart[k]}</td><td>₹${i.price}</td><td>₹${i.price*cart[k]}</td></tr>`}).join("");
+  $("bbody").innerHTML=Object.keys(cart).map(k=>{const i=items[k];return`<tr><td><span class="dt" style="background:${i.nv?"#ff3b3b":"#00c853"}"></span>${esc(dn(i))}</td><td>${cart[k]}</td><td>₹${i.price}</td><td>₹${i.price*cart[k]}</td></tr>`}).join("");
   const B=bill();
   $("bsums").innerHTML=`<div class="sm"><span>सब-टोटल</span><span>₹${B.sub}</span></div>`+(GST_PCT?`<div class="sm"><span>GST (${GST_PCT}%)</span><span>₹${B.gst}</span></div>`:"")+(B.del?`<div class="sm"><span>Delivery</span><span>₹${B.del}</span></div>`:"");
   $("bgt").textContent="₹"+B.grand;
@@ -237,7 +249,7 @@ function setPay(p){
   if(u){$("qrimg").innerHTML="";new QRCode($("qrimg"),{text:upiLink(),width:130,height:130,correctLevel:QRCode.CorrectLevel.M});$("upiApp").href=upiLink()}
 }
 function sendWA(){
-  const B=bill();let L="";for(const k in cart){const i=items[k];L+=`${i.nv?"🔴":"🟢"} *${i.name}* (x${cart[k]}) - ₹${i.price*cart[k]}\n`}
+  const B=bill();let L="";for(const k in cart){const i=items[k];L+=`${i.nv?"🔴":"🟢"} *${dn(i)}* (x${cart[k]}) - ₹${i.price*cart[k]}\n`}
   const m=`🍽️ *नया डिजिटल ऑर्डर*\n━━━━━━━━━━━━━━\n🏨 *Hotel Jagdamba Family Restaurant & Dhaba*\n🧾 *ऑर्डर नं.:* ${order.id}\n\n👤 *नाम:* ${order.name}\n🍴 *प्रकार:* ${order.mode}\n📍 *${order.mode==="Dining"?"टेबल नं.":"पता"}:* ${order.info}\n${order.mode==="Delivery"?`📞 *मोबाइल:* ${order.ph}\n`:""}\n📋 *ऑर्डर:*\n${L}\n${GST_PCT?`GST: ₹${B.gst}\n`:""}${B.del?`Delivery: ₹${B.del}\n`:""}💵 *कुल बिल: ₹${B.grand}*\n💳 *पेमेंट:* ${pay==="UPI"?"UPI — स्क्रीनशॉट भेजेंगे":"होटल में"}\n━━━━━━━━━━━━━━\n🙏 *धन्यवाद!*`;
   window.open("https://wa.me/"+WA_NO+"?text="+encodeURIComponent(m),"_blank");
   cart={};sync();render();toast("ऑर्डर भेज दिया गया ✔");
